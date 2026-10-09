@@ -38,6 +38,10 @@ extension Color {
     /// Track background for usage limit progress bars.
     static let limitTrack = Color.gray.opacity(0.10)
 
+    /// A separate hue for time remaining on reset-bank credits, distinct from
+    /// quota consumption bars.
+    static let resetProgress = Color(.sRGB, red: 0.43, green: 0.39, blue: 0.91, opacity: 1.0)
+
     /// Usage limit bar color by fraction (0.0–1.0): green → amber → red as the
     /// window fills. Unified across providers (no per-provider brand tint).
     static func limitBar(fraction: Double) -> Color {

@@ -43,6 +43,7 @@ enum Strings {
     static var topModelsTitle: String { t("Models", "模型", "模型", "モデル", "모델") }
     static var modelBreakdownTitle: String { t("Model Breakdown", "模型明细", "模型明細", "モデル別内訳", "모델별 분석") }
     static var todayTitle: String { t("Today", "今日", "今日", "今日", "오늘") }
+    static var usageSummaryTitle: String { t("Usage Overview", "用量概览", "用量概覽", "使用状況", "사용량 개요") }
     static var sevenDayTitle: String { t("7-Day", "7 天", "7 天", "7日間", "7일") }
     static var thirtyDayTitle: String { t("30-Day", "30 天", "30 天", "30日間", "30일") }
     static var perDay: String { t("/day", "/天", "/天", "/日", "/일") }
@@ -98,7 +99,10 @@ enum Strings {
         t("Resets", "重置权益", "重置權益", "リセット", "리셋")
     }
     static func codexResetBankLabel(_ index: Int) -> String {
-        t("Reset \(index)", "重置 \(index)", "重置 \(index)", "リセット \(index)", "리셋 \(index)")
+        t("Reset card \(index)", "重置卡 \(index)", "重置卡 \(index)", "リセットカード \(index)", "리셋 카드 \(index)")
+    }
+    static func codexResetBankAvailableCount(_ count: Int) -> String {
+        t("\(count) available", "可用 \(count) 次", "可用 \(count) 次", "利用可能 \(count) 回", "사용 가능 \(count)회")
     }
     static func codexResetBankPassiveStatus(_ resetCredits: CodexLimits.ResetCredits?) -> String? {
         guard let resetCredits else { return nil }
@@ -121,6 +125,28 @@ enum Strings {
         formatter.locale = Locale(identifier: loc)
         formatter.setLocalizedDateFormatFromTemplate("MdHm")
         return formatter.string(from: date)
+    }
+    static func resetCreditCountdown(expiresAt: Date, now: Date) -> String {
+        let seconds = expiresAt.timeIntervalSince(now)
+        guard seconds > 0 else { return subscriptionExpired }
+
+        if seconds < 3600 {
+            let minutes = Int(ceil(seconds / 60))
+            return t("Expires in \(minutes)m", "\(minutes) 分钟后到期", "\(minutes) 分鐘後到期", "\(minutes) 分後に期限", "\(minutes)분 후 만료")
+        }
+        if seconds < 86400 {
+            let hours = Int(ceil(seconds / 3600))
+            return t("Expires in \(hours)h", "\(hours) 小时后到期", "\(hours) 小時後到期", "\(hours) 時間後に期限", "\(hours)시간 후 만료")
+        }
+
+        let days = Int(seconds / 86400)
+        let hours = Int((seconds - Double(days) * 86400) / 3600)
+        let duration = hours > 0 ? "\(days)d \(hours)h" : "\(days)d"
+        let zhDuration = hours > 0 ? "\(days) 天 \(hours) 小时" : "\(days) 天"
+        let zhHantDuration = hours > 0 ? "\(days) 天 \(hours) 小時" : "\(days) 天"
+        let jaDuration = hours > 0 ? "\(days) 日 \(hours) 時間" : "\(days) 日"
+        let koDuration = hours > 0 ? "\(days)일 \(hours)시간" : "\(days)일"
+        return t("Expires in \(duration)", "\(zhDuration)后到期", "\(zhHantDuration)後到期", "\(jaDuration)後に期限", "\(koDuration) 후 만료")
     }
     /// Exact local reset instant appended to an explain-popover window line,
     /// e.g. "Resets 7/6 18:00". Reuses the MdHm locale-aware formatter.
@@ -166,11 +192,11 @@ enum Strings {
     }
     static func resetCreditAccessibility(label: String, expiry: String) -> String {
         t(
-            "Reset credit \(label), expires \(expiry)",
-            "重置权益 \(label)，过期时间 \(expiry)",
-            "重置權益 \(label)，過期時間 \(expiry)",
-            "リセットクレジット \(label)、期限 \(expiry)",
-            "리셋 크레딧 \(label), 만료 \(expiry)"
+            "\(label), expires \(expiry)",
+            "\(label)，过期时间 \(expiry)",
+            "\(label)，過期時間 \(expiry)",
+            "\(label)、期限 \(expiry)",
+            "\(label), 만료 \(expiry)"
         )
     }
 
@@ -525,24 +551,23 @@ enum Strings {
     }
 
     /// Explanation shown in the side popover when a provider block is clicked.
-    /// Teaches how to read the bars — especially the pace mark.
+    /// The inline bar is intentionally simple; pace and projection details live here.
     static func limitsExplainBody(remaining: Bool) -> String {
         if remaining {
-            // Remaining mode fills with leftover quota: ahead = fill falls short.
             return t(
-                "The mark is the even-pace point; fill short of it means you're ahead.",
-                "竖标为匀速到现在应到的位置，填充不足即为偏快。",
-                "豎標為勻速到現在應到的位置，填充不足即為偏快。",
-                "目盛りは一定ペースの位置。塗りが届かないと速いペースです。",
-                "표시선은 균일 페이스 위치이며, 채움이 못 미치면 빠른 편입니다."
+                "The bar shows remaining quota. These details compare your pace with an even pace and project your remaining quota at reset.",
+                "进度条显示剩余额度；这里会比较当前消耗节奏，并估算重置时的剩余额度。",
+                "進度條顯示剩餘額度；這裡會比較目前消耗節奏，並估算重置時的剩餘額度。",
+                "バーは残りの上限を表示します。ここでは現在のペースを均等なペースと比べ、リセット時の残量を予測します。",
+                "막대는 남은 한도를 표시합니다. 여기에서 현재 사용 속도를 균일한 속도와 비교하고 초기화 시 남은 양을 예상합니다."
             )
         }
         return t(
-            "The mark is the even-pace point; fill past it means you're ahead.",
-            "竖标为匀速到现在应到的位置，填充超过即为偏快。",
-            "豎標為勻速到現在應到的位置，填充超過即為偏快。",
-            "目盛りは一定ペースの位置。塗りが超えると速いペースです。",
-            "표시선은 균일 페이스 위치이며, 채움이 넘으면 빠른 편입니다."
+            "The bar shows quota used. These details compare your pace with an even pace and project your usage at reset.",
+            "进度条显示已用额度；这里会比较当前消耗节奏，并估算重置时的用量。",
+            "進度條顯示已用額度；這裡會比較目前消耗節奏，並估算重置時的用量。",
+            "バーは使用済みの上限を表示します。ここでは現在のペースを均等なペースと比べ、リセット時の使用量を予測します。",
+            "막대는 사용한 한도를 표시합니다. 여기에서 현재 사용 속도를 균일한 속도와 비교하고 초기화 시 사용량을 예상합니다."
         )
     }
 

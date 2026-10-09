@@ -128,25 +128,13 @@ struct ClawdCompanionView: View {
         }
     }
 
-    /// Menu-bar popover header: character + bubble + sync button in a row.
+    /// Menu-bar popover header: sync button aligned to the trailing edge.
     private var dashboardContent: some View {
         HStack(alignment: .center, spacing: 10) {
-            characterView
-                .frame(width: 15 * px, height: 16 * px)
-                .modifier(ActionModifier(action: currentAction))
-                .modifier(ClawdHoverModifier(hoveringCharacter: $hoveringCharacter, onActive: { loc in
-                    let mid = 15 * px / 2
-                    hoverSide = loc.x < mid - 10 ? .left : (loc.x > mid + 10 ? .right : .center)
-                    updateLookDirection(at: loc, in: CGSize(width: 15 * px, height: 16 * px))
-                }, onEnded: {
-                    hoverSide = .none
-                    hoverDirectionIndex = nil
-                }))
-                .onTapGesture { handleTap() }
-
-            bubbleView
-                .id("quip-\(quipIndex)")
-                .offset(y: -2)
+            Text(Strings.usageSummaryTitle)
+                .font(.system(.caption, design: .default))
+                .modifier(FontWeightModifier(weight: .medium))
+                .foregroundStyle(.secondary)
 
             Spacer(minLength: 0)
 
@@ -154,7 +142,7 @@ struct ClawdCompanionView: View {
         }
         .padding(.horizontal, 20)
         .padding(.top, 16)
-        .padding(.bottom,-8)
+        .padding(.bottom, 12)
     }
 
     /// Standalone desktop pet: enlarged sprite with a hover/tap bubble floating above it.

@@ -1,18 +1,15 @@
 import SwiftUI
 
-/// Usage-limit progress bar drawn in a single `Canvas`, mirroring CodexBar's
-/// `UsageProgressBar` line logic.
+/// Usage-limit progress bar drawn in a single `Canvas` as a row of fine ticks.
 ///
 /// Why a single Canvas: it paints track, fill, warning markers and the pace tip
 /// in one pass with plain Core Graphics — no SwiftUI `.blendMode` /
 /// `.compositingGroup` modifiers, which trigger the macOS 26 Metal shader crash
 /// (CodexBar issue #805). All compositing stays inside the Canvas.
 ///
-/// The pace tip is CodexBar's "notch" style: a small punched-out gap at the pace
-/// position with a colored center stripe (green = on/under pace, red = ahead of
-/// pace). Punching first means the stripe sits over cleared pixels, so it stays
-/// visible even when its color matches the fill underneath. Warning markers are
-/// thin rounded ticks at configured threshold percentages.
+/// Filled ticks show progress; muted ticks show the remaining track. Keeping all
+/// drawing in one Canvas avoids SwiftUI blend/compositing effects that can crash
+/// on macOS 26. The optional pace marker remains layered over the tick rail.
 struct UsageLimitBar: View, Animatable {
     /// Filled portion, 0...100, already adjusted for used/remaining mode.
     var percent: Double
@@ -30,30 +27,40 @@ struct UsageLimitBar: View, Animatable {
     /// True when ahead of pace (deficit) → red stripe; false → green.
     let paceOver: Bool
 
-    var height: CGFloat = 6
+    var height: CGFloat = 8
     @Environment(\.displayScale) private var displayScale
 
     var body: some View {
         Canvas { context, size in
             let scale = max(displayScale, 1)
             let align: (CGFloat) -> CGFloat = { ($0 * scale).rounded() / scale }
-            let radius = size.height / 2
-            let cornerSize = CGSize(width: radius, height: radius)
             let rect = CGRect(origin: .zero, size: size)
             context.clip(to: Path(rect))
 
-            // Track.
-            context.fill(Path { $0.addRoundedRect(in: rect, cornerSize: cornerSize) },
-                         with: .color(Color.limitTrack))
-
-            // Fill.
+            // Draw a dense rail of rounded vertical ticks. Aligning their
+            // origins to the display scale keeps the fine marks crisp.
             let clamped = min(100, max(0, percent))
             let fillWidth = size.width * clamped / 100
-            if fillWidth > 0 {
-                let fillRect = CGRect(x: 0, y: 0, width: max(size.height, min(fillWidth, size.width)), height: size.height)
-                context.fill(Path { $0.addRoundedRect(in: fillRect, cornerSize: cornerSize) },
-                             with: .color(fillColor))
+            let tickWidth = align(1.5)
+            let tickStep = align(3.5)
+            let tickCorner = CGSize(width: tickWidth / 2, height: tickWidth / 2)
+            let tickCount = Int(ceil(size.width / tickStep))
+            var track = Path()
+            var fill = Path()
+
+            for index in 0..<tickCount {
+                let x = align(CGFloat(index) * tickStep)
+                let width = min(tickWidth, size.width - x)
+                guard width > 0 else { continue }
+                let tick = CGRect(x: x, y: 0, width: width, height: size.height)
+                track.addRoundedRect(in: tick, cornerSize: tickCorner)
+                if x < fillWidth {
+                    fill.addRoundedRect(in: tick, cornerSize: tickCorner)
+                }
             }
+
+            context.fill(track, with: .color(Color.limitTrack))
+            context.fill(fill, with: .color(fillColor))
 
             // Pace tip: punch a small gap, then draw a colored center stripe in it.
             if let pacePercent {

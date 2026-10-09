@@ -9,6 +9,12 @@ public enum NativeLocalization {
     public static let japaneseLocale = "ja"
     public static let koreanLocale = "ko"
 
+    #if DEBUG
+    /// Xcode Canvas can pin a preview to a locale without changing the user's
+    /// saved language preference. This override is compiled out of releases.
+    public static var previewLocaleOverride: String?
+    #endif
+
     private static var sharedDefaults: UserDefaults? {
         UserDefaults(suiteName: WidgetSharedConstants.appGroupIdentifier)
     }
@@ -48,7 +54,12 @@ public enum NativeLocalization {
     }
 
     public static var currentResolvedLocale: String {
-        resolveLocale(preference: currentPreference)
+        #if DEBUG
+        if let previewLocaleOverride {
+            return normalizePreference(previewLocaleOverride)
+        }
+        #endif
+        return resolveLocale(preference: currentPreference)
     }
 
     public static var usesChinese: Bool {

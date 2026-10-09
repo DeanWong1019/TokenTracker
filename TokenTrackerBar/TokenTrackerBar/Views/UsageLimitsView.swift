@@ -4,7 +4,7 @@ import AppKit
 struct UsageLimitsView: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @ObservedObject private var settings = LimitsSettingsStore.shared
+    @ObservedObject private var settings: LimitsSettingsStore
     @State private var showSettings = false
     /// Width of the widest visible row label; all label columns match it so
     /// bars align without reserving space for labels that aren't on screen.
@@ -18,6 +18,16 @@ struct UsageLimitsView: View {
     @State private var explainingProvider: String?
     let limits: UsageLimitsResponse?
     var subscriptions: [SubscriptionRecord] = []
+
+    init(
+        limits: UsageLimitsResponse?,
+        subscriptions: [SubscriptionRecord] = [],
+        settings: LimitsSettingsStore = .shared
+    ) {
+        self.limits = limits
+        self.subscriptions = subscriptions
+        _settings = ObservedObject(wrappedValue: settings)
+    }
 
     private static let rowColumnSpacing: CGFloat = 5
     private static let percentColumnWidth: CGFloat = 34
@@ -36,13 +46,6 @@ struct UsageLimitsView: View {
     /// lay out exactly as before on the first pass.
     private var effectiveResetColumnWidth: CGFloat {
         max(resetColumnWidth, Self.relativeResetColumnWidth)
-    }
-
-    /// Reset-bank rows show one wider trailing column (expiry) where the limit
-    /// rows show the percent + reset pair; keeping it equal to that pair's
-    /// total width makes every bar in the section share the same right edge.
-    private var resetExpiryColumnWidth: CGFloat {
-        Self.percentColumnWidth + Self.rowColumnSpacing + effectiveResetColumnWidth
     }
 
     /// At least one provider is configured and error-free.
@@ -327,7 +330,7 @@ struct UsageLimitsView: View {
             }
             VStack(spacing: 4) {
                 ForEach(specs) { spec in
-                    limitRow(label: spec.label, pct: spec.pct, reset: spec.resetText, toolName: toolName, windowSeconds: spec.windowSeconds, resetDate: spec.resetDate)
+                    limitRow(label: spec.label, pct: spec.pct, reset: spec.resetText, toolName: toolName)
                 }
                 if let sub = subscription {
                     subscriptionRow(for: sub)
@@ -441,11 +444,8 @@ struct UsageLimitsView: View {
                 return CodexResetRowSpec(
                     label: label,
                     expiry: expiry,
+                    expiresAt: expiresAt,
                     detail: daysLeft < 0 ? nil : Strings.resetCreditExpiryDetail(expiry: expiry, daysLeft: daysLeft),
-                    lifetimeRemainingPercent: resetLifetimeRemainingPercent(
-                        grantedAt: resetDate(iso: credit.grantedAt),
-                        expiresAt: expiresAt
-                    ),
                     accessibilityLabel: Strings.resetCreditAccessibility(label: label, expiry: expiry)
                 )
             }
@@ -639,9 +639,7 @@ struct UsageLimitsView: View {
         label: String,
         pct: Double,
         reset: String?,
-        toolName: String,
-        windowSeconds: Double? = nil,
-        resetDate: Date? = nil
+        toolName: String
     ) -> some View {
         let rawClamped = min(max(pct, 0), 100)
         let usedFraction = rawClamped / 100.0
@@ -650,22 +648,6 @@ struct UsageLimitsView: View {
         // Unified threshold fill (green → amber → red), based on actual usage so
         // the color reads the same in used and remaining modes.
         let fillColor = Color.limitBar(fraction: usedFraction)
-
-        // Time-aware pace mark (CodexBar-style notch). Shown once the window has
-        // nonzero usage. Green when on/under pace, red when ahead (deficit). Requires a
-        // trusted window length; monthly / billing-cycle windows show no mark.
-        var pacePercent: Double?
-        var paceOver = false
-        if let windowSeconds, windowSeconds > 0, let resetDate {
-            let pace = LimitPace.compute(
-                usedFraction: usedFraction,
-                windowSeconds: windowSeconds,
-                secondsUntilReset: resetDate.timeIntervalSinceNow,
-                remainingMode: settings.displayMode == .remaining
-            )
-            pacePercent = pace.pacePercent
-            paceOver = pace.paceOver
-        }
 
         let accessibilityLabel = Strings.limitAccessibility(
             toolName: toolName,
@@ -681,8 +663,8 @@ struct UsageLimitsView: View {
             UsageLimitBar(
                 percent: displayValue,
                 fillColor: fillColor,
-                pacePercent: pacePercent,
-                paceOver: paceOver
+                pacePercent: nil,
+                paceOver: false
             )
             .animation(reduceMotion ? .none : .easeOut(duration: 0.5), value: displayValue)
 
@@ -761,20 +743,36 @@ struct UsageLimitsView: View {
     }
 
     private func resetSection(rows: [CodexResetRowSpec], status: String?) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(Strings.codexResetBankSectionTitle)
-                .font(.system(.caption2, design: .default))
-                .modifier(FontWeightModifier(weight: .medium))
-                .foregroundStyle(.tertiary)
+        VStack(alignment: .leading, spacing: 5) {
+            HStack(spacing: 6) {
+                Text(Strings.codexResetBankSectionTitle)
+                    .font(.system(.caption2, design: .default))
+                    .modifier(FontWeightModifier(weight: .medium))
+                    .foregroundStyle(.tertiary)
+
+                if !rows.isEmpty {
+                    Text(Strings.codexResetBankAvailableCount(rows.count))
+                        .font(.system(.caption2, design: .default))
+                        .foregroundStyle(.secondary)
+                }
+            }
 
             if rows.isEmpty, let status {
                 Text(status)
                     .font(.system(.caption2, design: .default))
                     .foregroundStyle(.tertiary)
             } else {
-                VStack(spacing: 4) {
-                    ForEach(rows) { row in
-                        resetRow(row)
+                if rows.count <= 2 {
+                    HStack(spacing: 6) {
+                        ForEach(rows) { row in
+                            resetCreditBadge(row)
+                        }
+                    }
+                } else {
+                    VStack(alignment: .leading, spacing: 6) {
+                        ForEach(rows) { row in
+                            resetCreditBadge(row)
+                        }
                     }
                 }
             }
@@ -782,26 +780,28 @@ struct UsageLimitsView: View {
         .padding(.top, 1)
     }
 
-    private func resetRow(_ row: CodexResetRowSpec) -> some View {
-        HStack(spacing: Self.rowColumnSpacing) {
-            rowLabel(row.label)
-
-            UsageLimitBar(
-                percent: row.lifetimeRemainingPercent,
-                fillColor: Color.limitBar(fraction: 0),
-                pacePercent: nil,
-                paceOver: false
-            )
-
-            Text(row.expiry)
-                .font(.system(.caption2, design: .default))
-                .monospacedDigit()
-                .foregroundStyle(.tertiary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
-                .frame(width: resetExpiryColumnWidth, alignment: .trailing)
+    private func resetCreditBadge(_ row: CodexResetRowSpec) -> some View {
+        TimelineView(.periodic(from: .now, by: 60)) { timeline in
+            let remaining = row.expiresAt.timeIntervalSince(timeline.date)
+            HStack(spacing: 5) {
+                Text(row.label)
+                    .font(.system(.caption2, design: .default))
+                    .foregroundStyle(.secondary)
+                Circle()
+                    .fill(Color.secondary.opacity(0.45))
+                    .frame(width: 3, height: 3)
+                Text(Strings.resetCreditCountdown(expiresAt: row.expiresAt, now: timeline.date))
+                    .font(.system(.caption2, design: .default))
+                    .monospacedDigit()
+                    .lineLimit(1)
+            }
+            .foregroundStyle(remaining <= 0 ? Color.red : (remaining <= 3 * 86400 ? Color.orange : Color.secondary))
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
+            .fixedSize(horizontal: true, vertical: false)
         }
-        .help(row.detail ?? "")
+        .help(row.detail ?? row.accessibilityLabel)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(row.accessibilityLabel)
     }
@@ -853,14 +853,6 @@ struct UsageLimitsView: View {
         if h > 24 { return "\(h / 24)d" }
         if h > 0 { return "\(h)h" }
         return "\(Int(s) / 60)m"
-    }
-
-    private func resetLifetimeRemainingPercent(grantedAt: Date?, expiresAt: Date) -> Double {
-        guard let grantedAt else { return 100 }
-        let total = expiresAt.timeIntervalSince(grantedAt)
-        guard total > 0 else { return 100 }
-        let remaining = expiresAt.timeIntervalSince(Date())
-        return min(100, max(0, remaining / total * 100))
     }
 
     @ViewBuilder
@@ -1049,9 +1041,9 @@ private struct CodexResetRowSpec: Identifiable {
     var id: String { label }
     let label: String
     let expiry: String
+    let expiresAt: Date
     /// Hover tooltip: expiry instant + days left. Nil once already expired.
     let detail: String?
-    let lifetimeRemainingPercent: Double
     let accessibilityLabel: String
 }
 

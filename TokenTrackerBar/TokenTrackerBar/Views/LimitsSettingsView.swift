@@ -87,22 +87,25 @@ struct LimitsSettingsView: View {
                 .opacity(0.35)
                 .padding(.bottom, 2)
 
-            VStack(spacing: 0) {
-                ForEach(store.providerOrder, id: \.self) { id in
-                    providerRow(id: id)
-                        .opacity(draggingId == id ? 0.4 : 1)
-                        .onDrag {
-                            draggingId = id
-                            return NSItemProvider(object: id as NSString)
-                        }
-                        .onDrop(of: [.text], delegate: ReorderDropDelegate(
-                            targetId: id,
-                            store: store,
-                            draggingId: $draggingId
-                        ))
+            ScrollView(.vertical, showsIndicators: false) {
+                VStack(spacing: 0) {
+                    ForEach(store.providerOrder, id: \.self) { id in
+                        providerRow(id: id)
+                            .opacity(draggingId == id ? 0.4 : 1)
+                            .onDrag {
+                                draggingId = id
+                                return NSItemProvider(object: id as NSString)
+                            }
+                            .onDrop(of: [.text], delegate: ReorderDropDelegate(
+                                targetId: id,
+                                store: store,
+                                draggingId: $draggingId
+                            ))
+                    }
                 }
+                .padding(.bottom, 6)
             }
-            .padding(.bottom, 6)
+            .frame(maxHeight: 360)
         }
         .frame(width: 240)
     }

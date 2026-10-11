@@ -92,6 +92,16 @@ enum Strings {
         }
     }
     static var limitResetNow: String { t("now", "现在", "現在", "今", "지금") }
+    static var limitWindowJustReset: String { t("Just reset", "刚重置", "剛重置", "リセット直後", "방금 초기화됨") }
+    static func limitResetInMinutes(_ minutes: Int) -> String {
+        t("Reset in \(minutes)m", "\(minutes) 分钟后重置", "\(minutes) 分鐘後重置", "\(minutes) 分後にリセット", "\(minutes)분 후 초기화")
+    }
+    static func limitResetInHours(_ hours: Int) -> String {
+        t("Reset in \(hours)h", "\(hours) 小时后重置", "\(hours) 小時後重置", "\(hours) 時間後にリセット", "\(hours)시간 후 초기화")
+    }
+    static func limitResetInDays(_ days: Int) -> String {
+        t("Reset in \(days)d", "\(days) 天后重置", "\(days) 天後重置", "\(days) 日後にリセット", "\(days)일 후 초기화")
+    }
     static func kimiParallelLabel(_ count: Int) -> String {
         t("Parallel: \(count)", "并发：\(count)", "併發：\(count)", "並列：\(count)", "병렬: \(count)")
     }

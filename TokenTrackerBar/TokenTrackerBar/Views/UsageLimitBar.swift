@@ -41,16 +41,24 @@ struct UsageLimitBar: View, Animatable {
             // origins to the display scale keeps the fine marks crisp.
             let clamped = min(100, max(0, percent))
             let fillWidth = size.width * clamped / 100
-            let tickWidth = align(1.5)
-            let tickStep = align(3.5)
-            let tickCorner = CGSize(width: tickWidth / 2, height: tickWidth / 2)
-            let tickCount = Int(ceil(size.width / tickStep))
+            let tickWidth = align(4.0)
+            let tickStep = align(6.0)
+            let tickCorner = CGSize(width: align(1.0), height: align(1.0))
+            // Only draw complete ticks. A partial final tick gets clipped by
+            // the Canvas bounds and looks like the bar is covering it.
+            let tickCount = size.width >= tickWidth
+                ? Int(floor((size.width - tickWidth) / tickStep)) + 1
+                : 0
+            let railWidth = tickCount > 0
+                ? CGFloat(tickCount - 1) * tickStep + tickWidth
+                : 0
+            let leadingInset = max(0, (size.width - railWidth) / 2)
             var track = Path()
             var fill = Path()
 
             for index in 0..<tickCount {
-                let x = align(CGFloat(index) * tickStep)
-                let width = min(tickWidth, size.width - x)
+                let x = align(leadingInset + CGFloat(index) * tickStep)
+                let width = tickWidth
                 guard width > 0 else { continue }
                 let tick = CGRect(x: x, y: 0, width: width, height: size.height)
                 track.addRoundedRect(in: tick, cornerSize: tickCorner)

@@ -666,6 +666,9 @@ struct UsageLimitsView: View {
                 pacePercent: nil,
                 paceOver: false
             )
+            // Keep the bar flexible so it consumes the row's available width;
+            // this avoids a visually oversized gap before the percentage.
+            .frame(maxWidth: .infinity, alignment: .leading)
             .animation(reduceMotion ? .none : .easeOut(duration: 0.5), value: displayValue)
 
             Text(displayPercentLabel(displayValue))
@@ -718,6 +721,7 @@ struct UsageLimitsView: View {
                     pacePercent: nil,
                     paceOver: false
                 )
+                .frame(maxWidth: .infinity, alignment: .leading)
 
                 Text(percentLabel)
                     .font(.system(.caption, design: .monospaced))
@@ -848,11 +852,11 @@ struct UsageLimitsView: View {
 
     private func relativeString(from date: Date) -> String {
         let s = date.timeIntervalSince(Date())
-        guard s > 0 else { return Strings.limitResetNow }
+        guard s > 0 else { return Strings.limitWindowJustReset }
         let h = Int(s) / 3600
-        if h > 24 { return "\(h / 24)d" }
-        if h > 0 { return "\(h)h" }
-        return "\(Int(s) / 60)m"
+        if h > 24 { return Strings.limitResetInDays(h / 24) }
+        if h > 0 { return Strings.limitResetInHours(h) }
+        return Strings.limitResetInMinutes(max(1, Int(s) / 60))
     }
 
     @ViewBuilder
